@@ -3,6 +3,8 @@ import asyncio
 import aiofiles
 import pystache
 from glob import glob
+
+from .conversion import rgb2short as _rgb2short
 from .shared import get_yaml_dict, rel_to_cwd, JobOptions, verb_msg, compat_event_loop
 
 
@@ -80,8 +82,7 @@ def get_scheme_files(patterns=None):
 
 def reverse_hex(hex_str):
     """Reverse a hex foreground string into its background version."""
-    hex_str = "".join([hex_str[i : i + 2] for i in range(0, len(hex_str), 2)][::-1])
-    return hex_str
+    return "".join([hex_str[i: i + 2] for i in range(0, len(hex_str), 2)][::-1])
 
 
 def format_scheme(scheme, slug):
@@ -91,11 +92,14 @@ def format_scheme(scheme, slug):
     scheme["scheme-slug"] = slug
     bases = ["base{:02X}".format(x) for x in range(0, 16)]
     for base in bases:
-        scheme["{}-hex".format(base)] = scheme.pop(base)
-        scheme["{}-hex-r".format(base)] = scheme["{}-hex".format(base)][0:2]
-        scheme["{}-hex-g".format(base)] = scheme["{}-hex".format(base)][2:4]
-        scheme["{}-hex-b".format(base)] = scheme["{}-hex".format(base)][4:6]
-        scheme["{}-hex-bgr".format(base)] = reverse_hex(scheme["{}-hex".format(base)])
+        hex_ = scheme.pop(base)
+        scheme["{}-hex".format(base)] = hex_
+        scheme["{}-hex-r".format(base)] = hex_[0:2]
+        scheme["{}-hex-g".format(base)] = hex_[2:4]
+        scheme["{}-hex-b".format(base)] = hex_[4:6]
+        scheme["{}-hex-bgr".format(base)] = reverse_hex(hex_)
+
+        scheme["{}-256".format(base)] = _rgb2short(hex_)[0]
 
         scheme["{}-rgb-r".format(base)] = str(int(scheme["{}-hex-r".format(base)], 16))
         scheme["{}-rgb-g".format(base)] = str(int(scheme["{}-hex-g".format(base)], 16))
@@ -110,6 +114,13 @@ def format_scheme(scheme, slug):
         scheme["{}-dec-b".format(base)] = str(
             int(scheme["{}-rgb-b".format(base)]) / 255
         )
+
+    def rgb2short(text):
+        hex_ = pystache.render(text, scheme)
+        value, _ = _rgb2short(hex_)
+        return str(value)
+
+    scheme["rgb2short"] = rgb2short
 
 
 def slugify(scheme_file):
